@@ -1,0 +1,175 @@
+//Reference: https://www.electronicwings.com/particle/pir-sensor-interfacing-with-particle-photo
+//Connections: 
+// Argon - PIR Motion
+// 3V3 - Resistor (3K) - Power (5V)
+// GND - GND
+// D6 - Input
+
+int light_level=0;
+
+
+int PIR_SENSOR_OUTPUT_PIN = 6;	//PIR sensor 1
+int warm_up;
+int motion_status=0;
+
+#include "BH1750.h" //light sensor initialization
+BH1750 sensor(0x23, Wire);
+
+int PIR_SENSOR_OUTPUT_PIN_2 = 4;	//PIR sensor 2
+int warm_up_2;
+int second_motion_status=0;
+
+//buzzer and garage are controlled by motion 2
+int buzzer = 2; //buzzer pin
+int garage = 8; //garage lights pin 
+
+void setup() 
+{
+    pinMode(buzzer, OUTPUT);
+    digitalWrite(buzzer,LOW);
+    
+    pinMode(garage, OUTPUT);
+    digitalWrite(garage, LOW);
+    
+    pinMode(PIR_SENSOR_OUTPUT_PIN, INPUT);
+    
+    Serial.begin(9600);	
+    delay(20000);
+    
+    Particle.variable("motion_status", motion_status);
+    
+    pinMode(PIR_SENSOR_OUTPUT_PIN_2, INPUT);
+    
+    Particle.variable("second_motion_status", second_motion_status);
+
+    sensor.begin();
+
+    sensor.set_sensor_mode(BH1750::forced_mode_high_res2);
+
+    Serial.begin();
+}
+
+void loop() 
+{
+    sensor.make_forced_measurement();
+ 
+    delay(1000);
+    
+    int sensor_output;
+    //THIS MOTION SENSOR IS NOT DEPENDENT ON DAYLIGHT: WORKS ON MOTION FOR BUZZER AND TO SEND VALUES TO PI 
+    //This motion sensor is ideally located near front door.
+
+    int motion_detection=0;
+    String data;
+    
+        motion_detection = digitalRead(PIR_SENSOR_OUTPUT_PIN); //detect motion
+        if(motion_detection == LOW )
+        {
+            if(warm_up == 1 )
+            {
+                motion_status=0;
+                data= String(motion_status);
+            Particle.publish("motion_status", data, PRIVATE);
+
+                warm_up = 0;
+                delay(1000);
+            }
+            delay(1000);
+        }
+        else
+        {
+            motion_status=1;
+            warm_up = 1;
+            data= String(motion_status);
+            Particle.publish("Somebody's coming home! Buzzer sounded");
+            Particle.publish("Message sent to Raspberry Pi");
+            digitalWrite(buzzer, HIGH);
+            delay(500);
+            digitalWrite(buzzer, LOW);
+        
+            Particle.publish("motion_status", data, PRIVATE);
+
+          //  delay(60000); //1 min of delay
+            delay(3000);//short delay for testing
+            
+        }  
+              
+    
+        delay(1000);//1 sec of delay
+   
+
+    //code for second motion sensor: this is not dependent on light sensor and will trigger buzzer
+    //Connections: 
+// Argon - PIR Motion sensor 2
+// 3V3 - Resistor (3K) - Power (5V)
+// GND - GND
+// D4 - Input
+
+//Controls lights in garage when it is dark and motion is sensed. This motion sensor is ideally located in garage/parking spot and away from gate or main door.
+
+    int motion_detection_2=0;
+    String data_2;
+   
+  if(sensor.get_light_level()<=80) //evening time
+    {
+        motion_detection_2 = digitalRead(PIR_SENSOR_OUTPUT_PIN_2); //detect motion
+        if(motion_detection_2 == LOW )
+        {
+            if(warm_up_2 == 1 )
+            {
+                second_motion_status=0;
+                data_2= String(second_motion_status);
+            Particle.publish("second_motion_status", data_2, PRIVATE);
+
+                warm_up_2 = 0;
+                delay(1000);
+            }
+            delay(1000);
+        }
+        else
+        {
+            second_motion_status=1; 
+            warm_up_2 = 1;
+            data_2= String(second_motion_status);
+            digitalWrite(garage, HIGH);
+            //delay(12000); //on for two minutes
+            delay(3000); //3 seconds for testing
+            digitalWrite(garage, LOW);
+       
+            Particle.publish("second_motion_status", data_2, PRIVATE);
+
+            //delay(60000); //1 min of delay
+            
+            delay(3000); //short delay for testing
+        }  
+              
+    
+        delay(1000);//1 sec of delay
+    }
+    else
+    {
+        Particle.publish("Daylight present", String::format("%f", sensor.get_light_level()) );
+        
+    }
+
+}
+
+
+
+   
+ 
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
